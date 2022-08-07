@@ -14,6 +14,7 @@ namespace TheBestOfChuck.Libraries.AzureTableStorage.Repositories
             _tableClient.CreateIfNotExists();
         }
 
+        //TODO: error handling
         public async Task AddRangeAsync(IEnumerable<TEntity> entities)
         {
             try

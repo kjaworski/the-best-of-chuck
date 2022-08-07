@@ -5,6 +5,7 @@ namespace TheBestOfChuck.Libraries.AzureTableStorage.Repositories
 {
     public class JokeRepository : BaseRepository<JokeEntity>, IJokeRepository
     {
+        //TODO: write tests
         public JokeRepository(TableServiceClient tableServiceClient) : base(tableServiceClient)
         {
         }
