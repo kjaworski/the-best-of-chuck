@@ -2,25 +2,30 @@ using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+using TheBestOfChuck.Libraries.AzureTableStorage.Models;
+using TheBestOfChuck.Libraries.AzureTableStorage.Repositories;
 
 namespace TheBestOfChuck.Api
 {
     public class PullJokes
     {
         private readonly IHttpClientFactory _clientFactory;
+        private readonly IJokeRepository _jokeRepository;
 
-        public PullJokes(IHttpClientFactory clientFactory)
+        public PullJokes(IHttpClientFactory clientFactory, IJokeRepository jokeRepository)
         {
             _clientFactory = clientFactory;
+            _jokeRepository = jokeRepository;
         }
 
         [FunctionName(nameof(PullJokes))]
         public async Task Run([TimerTrigger("%PullJokesSchedule%")]TimerInfo myTimer, ILogger log)
         {
-            log.LogInformation($"C# Timer trigger function executed at: {DateTime.Now}");
+            log.LogInformation($"Starting Azure function: {nameof(PullJokes)}");
 
             try
             {
@@ -29,7 +34,7 @@ namespace TheBestOfChuck.Api
                 client.DefaultRequestHeaders.Add("X-RapidAPI-Key", "3f73dc77dbmshc8497504b4101dbp164fb1jsndd6506616cbf");
 
                 var numberOfJokesToFetch = 10;
-                var jokes = new List<Joke>();
+                var jokes = new List<JokeEntity>();
 
                 while (numberOfJokesToFetch > 0)
                 {
@@ -37,7 +42,7 @@ namespace TheBestOfChuck.Api
                     response.EnsureSuccessStatusCode();
 
                     var responseAsString = await response.Content.ReadAsStringAsync();
-                    var joke = JsonSerializer.Deserialize<Joke>(responseAsString,
+                    var joke = JsonSerializer.Deserialize<JokeEntity>(responseAsString,
                         new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true
@@ -51,9 +56,21 @@ namespace TheBestOfChuck.Api
                         continue;
                     }
 
+                    if (jokes.Any(j => j.RowKey == joke.RowKey))
+                    {
+                        continue;
+                    }
+
+                    if (_jokeRepository.Get(joke.PartitionKey, joke.RowKey) is not null)
+                    {
+                        continue;
+                    }
+
                     jokes.Add(joke);
                     numberOfJokesToFetch--;
                 }
+
+                await _jokeRepository.AddRangeAsync(jokes);
             }
             catch (Exception exception)
             {
